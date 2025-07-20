@@ -8,8 +8,8 @@ CLASSIFIER_URL = "https://api-inference.huggingface.co/models/facebook/bart-larg
 def extract_text_from_pdf(file):
     reader = PdfFileReader(file)
     text = ""
-    for page_num in range(reader.numPages):
-        content = reader.getPage(page_num).extract_text()
+    for page in reader.pages:
+        content = page.extract_text()
         if content:
             text += content + "\n"
     return text
