@@ -1,50 +1,50 @@
 import re
+import requests
 from PyPDF2 import PdfFileReader
-from transformers import pipeline
 
-summarizer = pipeline("summarization", model="google/pegasus-xsum")
-classifier = pipeline("zero-shot-classification")
+SUMMARIZER_URL = "https://api-inference.huggingface.co/models/google/pegasus-xsum"
+CLASSIFIER_URL = "https://api-inference.huggingface.co/models/facebook/bart-large-mnli"
 
 def extract_text_from_pdf(file):
     reader = PdfFileReader(file)
     text = ""
     for page_num in range(reader.numPages):
-        page = reader.getPage(page_num)
-        content = page.extract_text()
+        content = reader.getPage(page_num).extract_text()
         if content:
             text += content + "\n"
     return text
 
-def chunk_text(text, max_length=1000):
-    sentences = re.split(r'\. |\n', text)
-    chunks, current_chunk = [], ""
-    for sentence in sentences:
-        if len(current_chunk) + len(sentence) < max_length:
-            current_chunk += sentence + ". "
-        else:
-            chunks.append(current_chunk.strip())
-            current_chunk = sentence + ". "
-    chunks.append(current_chunk.strip())
-    return chunks
+def summarize_and_classify(text, api_key):
+    headers = {"Authorization": f"Bearer {api_key}"}
+    chunks, current, business, others = [], "", [], []
 
-def summarize_and_categorize(text):
-    chunks = chunk_text(text)
-    business_news, other_news = [], []
+    sentences = re.split(r'\. |\n', text)
+    for sentence in sentences:
+        if len(current) + len(sentence) < 1000:
+            current += sentence + ". "
+        else:
+            chunks.append(current.strip())
+            current = sentence + ". "
+    if current:
+        chunks.append(current.strip())
 
     for chunk in chunks:
         if len(chunk.split()) < 20:
             continue
 
-        summary = summarizer(chunk, max_length=100, min_length=30, do_sample=False)[0]['summary_text']
+        sum_resp = requests.post(SUMMARIZER_URL, headers=headers, json={"inputs": chunk})
+        if not sum_resp.ok: continue
+        summary = sum_resp.json()[0]["summary_text"]
         headline = summary.split(".")[0]
 
-        result = classifier(summary,
-                            candidate_labels=["business", "sports", "politics", "entertainment", "education"],
-                            multi_label=False)
+        clf_resp = requests.post(CLASSIFIER_URL, headers=headers,
+            json={"inputs": summary, "parameters": {"candidate_labels": ["business", "sports", "politics", "entertainment", "education"]}})
+        if not clf_resp.ok: continue
+        label = clf_resp.json()["labels"][0]
 
-        if result['labels'][0] == "business":
-            business_news.append((headline, summary))
+        if label == "business":
+            business.append((headline, summary))
         else:
-            other_news.append((headline, summary[:80] + "..."))
+            others.append((headline, summary[:80] + "..."))
 
-    return business_news, other_news
+    return business, others
