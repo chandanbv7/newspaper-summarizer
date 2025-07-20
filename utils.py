@@ -1,16 +1,17 @@
-import fitz  # PyMuPDF
+import pdfplumber
 from transformers import pipeline
-from sklearn.feature_extraction.text import TfidfVectorizer
 import re
 
 summarizer = pipeline("summarization", model="google/pegasus-xsum")
 classifier = pipeline("zero-shot-classification")
 
 def extract_text_from_pdf(file):
-    doc = fitz.open(stream=file.read(), filetype="pdf")
     text = ""
-    for page in doc:
-        text += page.get_text()
+    with pdfplumber.open(file) as pdf:
+        for page in pdf.pages:
+            page_text = page.extract_text()
+            if page_text:
+                text += page_text + "\n"
     return text
 
 def chunk_text(text, max_length=1000):
@@ -39,7 +40,7 @@ def summarize_and_categorize(text):
         result = classifier(summary,
                             candidate_labels=["business", "sports", "politics", "entertainment", "education"],
                             multi_label=False)
-        
+
         if result['labels'][0] == "business":
             business_news.append((headline, summary))
         else:
