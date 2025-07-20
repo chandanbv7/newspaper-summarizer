@@ -1,14 +1,15 @@
 import re
-from PyPDF2 import PdfReader
+from PyPDF2 import PdfFileReader
 from transformers import pipeline
 
 summarizer = pipeline("summarization", model="google/pegasus-xsum")
 classifier = pipeline("zero-shot-classification")
 
 def extract_text_from_pdf(file):
-    reader = PdfReader(file)
+    reader = PdfFileReader(file)
     text = ""
-    for page in reader.pages:
+    for page_num in range(reader.numPages):
+        page = reader.getPage(page_num)
         content = page.extract_text()
         if content:
             text += content + "\n"
