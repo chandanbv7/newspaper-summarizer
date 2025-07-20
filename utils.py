@@ -1,17 +1,17 @@
-import pdfplumber
-from transformers import pipeline
 import re
+from PyPDF2 import PdfReader
+from transformers import pipeline
 
 summarizer = pipeline("summarization", model="google/pegasus-xsum")
 classifier = pipeline("zero-shot-classification")
 
 def extract_text_from_pdf(file):
+    reader = PdfReader(file)
     text = ""
-    with pdfplumber.open(file) as pdf:
-        for page in pdf.pages:
-            page_text = page.extract_text()
-            if page_text:
-                text += page_text + "\n"
+    for page in reader.pages:
+        content = page.extract_text()
+        if content:
+            text += content + "\n"
     return text
 
 def chunk_text(text, max_length=1000):
